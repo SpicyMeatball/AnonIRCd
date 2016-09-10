@@ -8,12 +8,46 @@ import (
 	"log"
 	"strconv"
 	"strings"
-
-	irc "gopkg.in/sorcix/irc.v2"
 	"math/rand"
 	"crypto/tls"
 	"reflect"
+
+	"github.com/cznic/ql"
+	"github.com/jmoiron/sqlx"
+	irc "gopkg.in/sorcix/irc.v2"
 )
+/*
+type DBMode struct {
+	gorm.Model
+	Mode  string
+	Value string
+}
+
+type DBMember struct {
+	gorm.Model
+	Identifier string `gorm:"primary_key"`
+	Key        string `gorm:"not null;unique"`
+	Modes      []DBMode
+}
+
+type DBChannelMember struct {
+	gorm.Model
+	ID     int `gorm:"AUTO_INCREMENT"`
+	Member DBMember
+	Access int // 0 Standard - 1 Moderator - 2 Administrator - 3 Super-Administrator - 4 Founder
+	Note   string
+}
+
+type DBChannel struct {
+	gorm.Model
+	Identifier    string `gorm:"primary_key"`
+	Members       []DBChannelMember
+	Topic         string
+	Topictime     int
+	Modes         []DBMode
+	RequiredModes []DBMode
+	DisabledModes []DBMode
+}*/
 
 type Server struct {
 	config   *Config
@@ -21,6 +55,7 @@ type Server struct {
 	clients  map[string]*Client
 	channels map[string]*Channel
 
+	db       *sqlx.DB
 	*sync.RWMutex
 }
 
@@ -251,9 +286,6 @@ func (s *Server) handleMode(c *Client, params []string) {
 		channel := s.channels[params[0]]
 		if len(params) == 1 || params[1] == "" {
 			c.writebuffer <- &irc.Message{&anonirc, strings.Join([]string{irc.RPL_CHANNELMODEIS, c.nick, params[0], channel.printModes(channel.modes, nil)}, " "), []string{}}
-
-			// Send channel creation time
-			c.writebuffer <- &irc.Message{&anonirc, strings.Join([]string{"329", c.nick, params[0], fmt.Sprintf("%d", int32(channel.created))}, " "), []string{}}
 		} else if len(params) > 1 && len(params[1]) > 0  && (params[1][0] == '+' || params[1][0] == '-') {
 			lastmodes := make(map[string]string)
 			for mode, modevalue := range channel.modes {
@@ -559,7 +591,36 @@ func (s *Server) pingClients() {
 	}
 }
 
-func (s *Server) listen() {
+func (s *Server) init() {
+	ql.RegisterDriver()
+	db, err := sqlx.Connect("ql", "anonircd.db")
+	if err != nil {
+		log.Fatalf("Failed to open database: %s", err)
+	}
+	s.db = db
+	defer s.db.Close()
+
+	/*var (
+		id int
+		name string
+	)
+	rows, err := db.Query("select identifier, from channels")
+	if err != nil {
+		log.Fatalf("Failed to restore channels: %s", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err := rows.Scan(&id, &name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println(id, name)
+	}
+	err = rows.Err()
+	if err != nil {
+		log.Fatal(err)
+	}*/
+
 	go s.listenPlain()
 	go s.listenSSL()
 

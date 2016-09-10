@@ -1,15 +1,123 @@
 {
 	"comment": "",
-	"ignore": "test",
+	"ignore": "",
 	"package": [
 		{
-			"checksumSHA1": "hqDDDpue/5363luidNMBS8z8eJU=",
+			"checksumSHA1": "HyoKkpkPoyJwnhE6HVYoxRBwoo4=",
 			"path": "github.com/BurntSushi/toml",
 			"revision": "99064174e013895bbd9b025c31100bd1d9b590ca",
 			"revisionTime": "2016-07-17T15:07:09Z"
 		},
 		{
-			"checksumSHA1": "mRNv6NTAfGphwvF7YzNk8XOhX10=",
+			"checksumSHA1": "aRenbS0q/R9mszhHsjwJ8+Pny2U=",
+			"path": "github.com/cznic/b",
+			"revision": "bcff30a622dbdcb425aba904792de1df606dab7c",
+			"revisionTime": "2016-07-16T09:19:50Z"
+		},
+		{
+			"checksumSHA1": "i7GUvWWnVIHDZldmCT2wRXj/KYU=",
+			"path": "github.com/cznic/fileutil",
+			"revision": "1c9c88fbf552b3737c7b97e1f243860359687976",
+			"revisionTime": "2015-07-08T08:07:34Z"
+		},
+		{
+			"checksumSHA1": "SjRadzOaYC8ybng+pNir3W981cs=",
+			"path": "github.com/cznic/internal/buffer",
+			"revision": "cef02a853c3a93623c42eacd574e7ea05f55531b",
+			"revisionTime": "2016-09-05T09:40:39Z"
+		},
+		{
+			"checksumSHA1": "QVwNvF64ZyrF4hFaKcIHlO4bvh4=",
+			"path": "github.com/cznic/internal/file",
+			"revision": "cef02a853c3a93623c42eacd574e7ea05f55531b",
+			"revisionTime": "2016-09-05T09:40:39Z"
+		},
+		{
+			"checksumSHA1": "Gv05o/G8zBQ/SYtm41RwrYqIJ3c=",
+			"path": "github.com/cznic/internal/slice",
+			"revision": "cef02a853c3a93623c42eacd574e7ea05f55531b",
+			"revisionTime": "2016-09-05T09:40:39Z"
+		},
+		{
+			"checksumSHA1": "HANeKiscvrtetYx3ZBYjRfSPrzg=",
+			"path": "github.com/cznic/lldb",
+			"revision": "9440a7484d40d79302f6bd49a3d9c018037b0722",
+			"revisionTime": "2016-07-25T11:52:09Z"
+		},
+		{
+			"checksumSHA1": "HzI1LOqVj2/2ovQmpKYUuNK0VVk=",
+			"path": "github.com/cznic/mathutil",
+			"revision": "78ad7f262603437f0ecfebc835d80094f89c8f54",
+			"revisionTime": "2016-06-13T10:48:31Z"
+		},
+		{
+			"checksumSHA1": "I5R4urpQqwOMzgICSCXqd0S6W5c=",
+			"path": "github.com/cznic/ql",
+			"revision": "c81467d34c630800dd4ba81033e234a8159ff2e3",
+			"revisionTime": "2016-07-29T13:25:30Z"
+		},
+		{
+			"checksumSHA1": "X4dRll28rc3dpy6bhFCEO6Fo50o=",
+			"path": "github.com/cznic/ql/driver",
+			"revision": "c81467d34c630800dd4ba81033e234a8159ff2e3",
+			"revisionTime": "2016-07-29T13:25:30Z"
+		},
+		{
+			"checksumSHA1": "DkX6EdyieFhZuWeNgf1ea3dA5zg=",
+			"path": "github.com/cznic/ql/vendored/github.com/camlistore/go4/lock",
+			"revision": "c81467d34c630800dd4ba81033e234a8159ff2e3",
+			"revisionTime": "2016-07-29T13:25:30Z"
+		},
+		{
+			"checksumSHA1": "bIVllxjT6Macy1h8Qlkgn7vPuQw=",
+			"path": "github.com/cznic/sortutil",
+			"revision": "4c7342852e65c2088c981288f2c5610d10b9f7f4",
+			"revisionTime": "2015-06-17T08:33:42Z"
+		},
+		{
+			"checksumSHA1": "bT9ephZxLJOCKLoNdoijN2s3L2M=",
+			"path": "github.com/cznic/strutil",
+			"revision": "1eb03e3cc9d345307a45ec82bd3016cde4bd4464",
+			"revisionTime": "2015-04-30T12:47:30Z"
+		},
+		{
+			"checksumSHA1": "YXg687ogmYH7wbuKsZ9slWPf25w=",
+			"path": "github.com/cznic/zappy",
+			"revision": "2533cb5b45cc6c07421468ce262899ddc9d53fb7",
+			"revisionTime": "2016-07-23T13:35:15Z"
+		},
+		{
+			"checksumSHA1": "6hoza5i1wSFVrZV6bUxWBEfZ0To=",
+			"path": "github.com/edsrzf/mmap-go",
+			"revision": "935e0e8a636ca4ba70b713f3e38a19e1b77739e8",
+			"revisionTime": "2016-05-12T03:30:02Z"
+		},
+		{
+			"checksumSHA1": "yXsk/xCzEV0g+e4SpJsoYsYAkls=",
+			"path": "github.com/jmoiron/sqlx",
+			"revision": "7396209bbeada6a4fcc28aa9408f89b2e71cac39",
+			"revisionTime": "2016-07-29T03:07:26Z"
+		},
+		{
+			"checksumSHA1": "8VhxM121vOBDDQktLirYuEIei8s=",
+			"path": "github.com/jmoiron/sqlx/reflectx",
+			"revision": "7396209bbeada6a4fcc28aa9408f89b2e71cac39",
+			"revisionTime": "2016-07-29T03:07:26Z"
+		},
+		{
+			"checksumSHA1": "+Q4ES3lJVAIyCcVVRXAfAJ57910=",
+			"path": "github.com/mattn/go-sqlite3",
+			"revision": "3fb7a0e792edd47bf0cf1e919dfc14e2be412e15",
+			"revisionTime": "2016-09-07T16:20:43Z"
+		},
+		{
+			"checksumSHA1": "vUcHzx0aV5Vid+r3FyGE1Y7QkHs=",
+			"path": "github.com/mattn/go-sqlite3/sqlite3_test",
+			"revision": "3fb7a0e792edd47bf0cf1e919dfc14e2be412e15",
+			"revisionTime": "2016-09-07T16:20:43Z"
+		},
+		{
+			"checksumSHA1": "KGpkJ6E2GHvEmh72ul6foqEoSX8=",
 			"path": "gopkg.in/sorcix/irc.v2",
 			"revision": "63b1858457fa9439c5f37124100605a0b0d98bd8",
 			"revisionTime": "2016-05-13T12:23:15Z"

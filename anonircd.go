@@ -93,6 +93,6 @@ func main() {
 		}
 	}
 
-	server := Server{&config, time.Now().Unix(), make(map[string]*Client), make(map[string]*Channel), new(sync.RWMutex)}
-	server.listen()
+	server := Server{&config, time.Now().Unix(), make(map[string]*Client), make(map[string]*Channel), nil, new(sync.RWMutex)}
+	server.init()
 }

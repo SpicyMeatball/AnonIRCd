@@ -3,5 +3,6 @@
 AnonIRCd
 anonircd
 anonircd.conf
+anonircd.db
 bin
 data
