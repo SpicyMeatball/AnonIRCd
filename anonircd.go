@@ -15,23 +15,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
 package main
 
 import (
+	"math/rand"
+	"os"
+	"os/signal"
 	"sort"
 	"sync"
-	"math/rand"
+	"syscall"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/jmoiron/sqlx"
 	irc "gopkg.in/sorcix/irc.v2"
-	"log"
-	"os"
 )
 
 var anonymous = irc.Prefix{"Anonymous", "Anon", "IRC"}
-var anonirc = irc.Prefix{Name:"AnonIRC"}
+var anonirc = irc.Prefix{Name: "AnonIRC"}
 
 const motd = `
   _|_|                                  _|_|_|  _|_|_|      _|_|_|
@@ -41,11 +41,6 @@ _|    _|  _|    _|  _|    _|  _|    _|    _|    _|    _|  _|
 _|    _|  _|    _|    _|_|    _|    _|  _|_|_|  _|    _|    _|_|_|
 `
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-type Config struct {
-	SSLCert string
-	SSLKey  string
-}
 
 type Pair struct {
 	Key   string
@@ -86,13 +81,17 @@ func randomIdentifier() string {
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	var config Config
-	if _, err := os.Stat("anonircd.conf"); err == nil {
-		if _, err := toml.DecodeFile("anonircd.conf", &config); err != nil {
-			log.Fatalf("Failed to read anonircd.conf: %v", err)
-		}
-	}
-
-	server := Server{&config, time.Now().Unix(), make(map[string]*Client), make(map[string]*Channel), nil, new(sync.RWMutex)}
+	server := Server{&Config{}, time.Now().Unix(), make(map[string]*Client), make(map[string]*Channel), make(chan bool, 1), make(chan bool, 1), new(sqlx.DB), new(sync.RWMutex)}
+	server.loadConfig()
 	server.init()
+
+	sighup := make(chan os.Signal, 1)
+	signal.Notify(sighup,
+		syscall.SIGHUP)
+	go func() {
+		_ = <-sighup
+		server.reload()
+	}()
+
+	server.listen()
 }

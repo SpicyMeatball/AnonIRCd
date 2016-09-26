@@ -1,53 +1,28 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
-	"net"
-	"sync"
-	"time"
 	"log"
+	"math/rand"
+	"net"
+	"os"
+	"reflect"
 	"strconv"
 	"strings"
-	"math/rand"
-	"crypto/tls"
-	"reflect"
+	"sync"
+	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/cznic/ql"
 	"github.com/jmoiron/sqlx"
 	irc "gopkg.in/sorcix/irc.v2"
 )
-/*
-type DBMode struct {
-	gorm.Model
-	Mode  string
-	Value string
-}
 
-type DBMember struct {
-	gorm.Model
-	Identifier string `gorm:"primary_key"`
-	Key        string `gorm:"not null;unique"`
-	Modes      []DBMode
+type Config struct {
+	SSLCert string
+	SSLKey  string
 }
-
-type DBChannelMember struct {
-	gorm.Model
-	ID     int `gorm:"AUTO_INCREMENT"`
-	Member DBMember
-	Access int // 0 Standard - 1 Moderator - 2 Administrator - 3 Super-Administrator - 4 Founder
-	Note   string
-}
-
-type DBChannel struct {
-	gorm.Model
-	Identifier    string `gorm:"primary_key"`
-	Members       []DBChannelMember
-	Topic         string
-	Topictime     int
-	Modes         []DBMode
-	RequiredModes []DBMode
-	DisabledModes []DBMode
-}*/
 
 type Server struct {
 	config   *Config
@@ -55,7 +30,10 @@ type Server struct {
 	clients  map[string]*Client
 	channels map[string]*Channel
 
-	db       *sqlx.DB
+	restartplain chan bool
+	restartssl   chan bool
+
+	db *sqlx.DB
 	*sync.RWMutex
 }
 
@@ -286,7 +264,7 @@ func (s *Server) handleMode(c *Client, params []string) {
 		channel := s.channels[params[0]]
 		if len(params) == 1 || params[1] == "" {
 			c.writebuffer <- &irc.Message{&anonirc, strings.Join([]string{irc.RPL_CHANNELMODEIS, c.nick, params[0], channel.printModes(channel.modes, nil)}, " "), []string{}}
-		} else if len(params) > 1 && len(params[1]) > 0  && (params[1][0] == '+' || params[1][0] == '-') {
+		} else if len(params) > 1 && len(params[1]) > 0 && (params[1][0] == '+' || params[1][0] == '-') {
 			lastmodes := make(map[string]string)
 			for mode, modevalue := range channel.modes {
 				lastmodes[mode] = modevalue
@@ -313,7 +291,7 @@ func (s *Server) handleMode(c *Client, params []string) {
 					resendusercount = true
 				}
 
-				if (len(addedmodes) == 0 && len(removedmodes) == 0) {
+				if len(addedmodes) == 0 && len(removedmodes) == 0 {
 					addedmodes = c.modes
 				}
 
@@ -337,7 +315,7 @@ func (s *Server) handleMode(c *Client, params []string) {
 			lastmodes[mode] = modevalue
 		}
 
-		if len(params) > 1 && len(params[1]) > 0  && (params[1][0] == '+' || params[1][0] == '-') {
+		if len(params) > 1 && len(params[1]) > 0 && (params[1][0] == '+' || params[1][0] == '-') {
 			c.Lock()
 			if params[1][0] == '+' {
 				c.addModes(params[1][1:])
@@ -358,7 +336,7 @@ func (s *Server) handleMode(c *Client, params []string) {
 				resendusercount = true
 			}
 
-			if (len(addedmodes) == 0 && len(removedmodes) == 0) {
+			if len(addedmodes) == 0 && len(removedmodes) == 0 {
 				addedmodes = c.modes
 			}
 
@@ -390,31 +368,31 @@ func (s *Server) handleRead(c *Client) {
 		c.conn.SetDeadline(time.Now().Add(300 * time.Second))
 		msg, err := s.clients[c.identifier].reader.Decode()
 		if err != nil {
-			fmt.Println("Unable to read from client:", err)
+			log.Println("Unable to read from client:", err)
 			s.partAllChannels(c.identifier)
 			return
 		}
-		if (msg.Command != irc.PING && msg.Command != irc.PONG) {
-			fmt.Println(c.identifier, "<-", fmt.Sprintf("%s", msg))
+		if len(msg.Command) >= 4 && msg.Command[0:4] != irc.PING && msg.Command[0:4] != irc.PONG {
+			log.Println(c.identifier, "<-", fmt.Sprintf("%s", msg))
 		}
-		if (msg.Command == irc.CAP && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] == irc.CAP_LS) {
+		if msg.Command == irc.CAP && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] == irc.CAP_LS {
 			c.writebuffer <- &irc.Message{&anonirc, irc.CAP, []string{msg.Params[0], "userhost-in-names"}}
-		} else if (msg.Command == irc.CAP && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] == irc.CAP_REQ) {
+		} else if msg.Command == irc.CAP && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] == irc.CAP_REQ {
 			if strings.Contains(msg.Trailing(), "userhost-in-names") {
 				c.capHostInNames = true
 			}
 			c.writebuffer <- &irc.Message{&anonirc, irc.CAP, []string{irc.CAP_ACK, msg.Trailing()}}
-		} else if (msg.Command == irc.CAP && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] == irc.CAP_LIST) {
+		} else if msg.Command == irc.CAP && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] == irc.CAP_LIST {
 			caps := []string{}
 			if c.capHostInNames {
 				caps = append(caps, "userhost-in-names")
 			}
 			c.writebuffer <- &irc.Message{&anonirc, irc.CAP, []string{msg.Params[0], strings.Join(caps, " ")}}
-		} else if (msg.Command == irc.PING) {
+		} else if msg.Command == irc.PING {
 			c.writebuffer <- &irc.Message{&anonirc, irc.PONG + " AnonIRC", []string{msg.Trailing()}}
-		} else if (msg.Command == irc.NICK && c.nick == "*" && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] != "" && msg.Params[0] != "*") {
+		} else if msg.Command == irc.NICK && c.nick == "*" && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0] != "" && msg.Params[0] != "*" {
 			c.nick = strings.Trim(msg.Params[0], "\"")
-		} else if (msg.Command == irc.USER && c.user == "" && len(msg.Params) >= 3 && msg.Params[0] != "" && msg.Params[2] != "") {
+		} else if msg.Command == irc.USER && c.user == "" && len(msg.Params) >= 3 && msg.Params[0] != "" && msg.Params[2] != "" {
 			c.user = strings.Trim(msg.Params[0], "\"")
 			c.host = strings.Trim(msg.Params[2], "\"")
 
@@ -426,9 +404,9 @@ func (s *Server) handleRead(c *Client) {
 			motdsplit := strings.Split(motd, "\n")
 			for i, motdmsg := range motdsplit {
 				var motdcode string
-				if (i == 0) {
+				if i == 0 {
 					motdcode = irc.RPL_MOTDSTART
-				} else if (i < len(motdsplit) - 1) {
+				} else if i < len(motdsplit)-1 {
 					motdcode = irc.RPL_MOTD
 				} else {
 					motdcode = irc.RPL_ENDOFMOTD
@@ -437,7 +415,7 @@ func (s *Server) handleRead(c *Client) {
 			}
 
 			s.joinChannel("#", c.identifier)
-		} else if (msg.Command == irc.LIST) {
+		} else if msg.Command == irc.LIST {
 			var ccount int
 			chans := make(map[string]int)
 			for channelname, channel := range s.channels {
@@ -452,15 +430,15 @@ func (s *Server) handleRead(c *Client) {
 				c.writebuffer <- &irc.Message{&anonirc, irc.RPL_LIST, []string{pl.Key, strconv.Itoa(pl.Value), "[" + s.channels[pl.Key].printModes(s.channels[pl.Key].modes, nil) + "] " + s.channels[pl.Key].topic}}
 			}
 			c.writebuffer <- &irc.Message{&anonirc, irc.RPL_LISTEND, []string{"End of /LIST"}}
-		} else if (msg.Command == irc.JOIN && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#') {
+		} else if msg.Command == irc.JOIN && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#' {
 			for _, channel := range strings.Split(msg.Params[0], ",") {
 				s.joinChannel(channel, c.identifier)
 			}
-		} else if (msg.Command == irc.NAMES && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#') {
+		} else if msg.Command == irc.NAMES && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#' {
 			for _, channel := range strings.Split(msg.Params[0], ",") {
 				s.sendNames(channel, c.identifier)
 			}
-		} else if (msg.Command == irc.WHO && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#') {
+		} else if msg.Command == irc.WHO && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#' {
 			var ccount int
 			for _, channel := range strings.Split(msg.Params[0], ",") {
 				if s.inChannel(channel, c.identifier) {
@@ -478,21 +456,21 @@ func (s *Server) handleRead(c *Client) {
 					c.writebuffer <- &irc.Message{&anonirc, irc.RPL_ENDOFWHO, []string{channel, "End of /WHO list."}}
 				}
 			}
-		} else if (msg.Command == irc.MODE) {
+		} else if msg.Command == irc.MODE {
 			if len(msg.Params) == 2 && msg.Params[0][0] == '#' && msg.Params[1] == "b" {
 				c.writebuffer <- &irc.Message{&anonirc, irc.RPL_ENDOFBANLIST, []string{msg.Params[0], "End of Channel Ban List"}}
 			} else {
 				s.handleMode(c, msg.Params)
 			}
-		} else if (msg.Command == irc.TOPIC && len(msg.Params) > 0 && len(msg.Params[0]) > 0) {
+		} else if msg.Command == irc.TOPIC && len(msg.Params) > 0 && len(msg.Params[0]) > 0 {
 			s.handleTopic(msg.Params[0], c.identifier, msg.Trailing())
-		} else if (msg.Command == irc.PRIVMSG && len(msg.Params) > 0 && len(msg.Params[0]) > 0) {
+		} else if msg.Command == irc.PRIVMSG && len(msg.Params) > 0 && len(msg.Params[0]) > 0 {
 			s.handlePrivmsg(msg.Params[0], c.identifier, msg.Trailing())
-		} else if (msg.Command == irc.PART && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#') {
+		} else if msg.Command == irc.PART && len(msg.Params) > 0 && len(msg.Params[0]) > 0 && msg.Params[0][0] == '#' {
 			for _, channel := range strings.Split(msg.Params[0], ",") {
 				s.partChannel(channel, c.identifier, "")
 			}
-		} else if (msg.Command == irc.QUIT) {
+		} else if msg.Command == irc.QUIT {
 			s.partAllChannels(c.identifier)
 		}
 	}
@@ -511,8 +489,8 @@ func (s *Server) handleWrite(c *Client) {
 			msg.Params = append([]string{c.nick}, msg.Params...)
 		}
 
-		if (msg.Command != irc.PING && msg.Command != irc.PONG) {
-			fmt.Println(c.identifier, "->", msg)
+		if len(msg.Command) >= 4 && msg.Command[0:4] != irc.PING && msg.Command[0:4] != irc.PONG {
+			log.Println(c.identifier, "->", msg)
 		}
 		c.writer.Encode(msg)
 	}
@@ -540,45 +518,70 @@ func (s *Server) handleConnection(conn net.Conn, ssl bool) {
 }
 
 func (s *Server) listenPlain() {
-	listen, err := net.Listen("tcp", ":6667")
-	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
-	}
-	defer listen.Close()
-
 	for {
-		conn, err := listen.Accept()
+		listen, err := net.Listen("tcp", ":6667")
 		if err != nil {
-			fmt.Println("Error accepting connection:", err)
+			log.Println("Failed to listen: %v", err)
+			time.Sleep(1 * time.Minute)
 			continue
 		}
-		go s.handleConnection(conn, false)
+		log.Println("Listening on 6667")
+
+	accept:
+		for {
+			select {
+			case _ = <-s.restartplain:
+				break accept
+			default:
+				conn, err := listen.Accept()
+				if err != nil {
+					log.Println("Error accepting connection:", err)
+					continue
+				}
+				go s.handleConnection(conn, true)
+			}
+		}
+		listen.Close()
 	}
 }
 
 func (s *Server) listenSSL() {
-	if s.config.SSLCert == "" {
-		return // SSL is disabled
-	}
-
-	cert, err := tls.LoadX509KeyPair(s.config.SSLCert, s.config.SSLKey)
-	if err != nil {
-		log.Fatalf("Failed to load SSL certificate: %v", err)
-	}
-
-	listen, err := tls.Listen("tcp", ":6697", &tls.Config{Certificates:[]tls.Certificate{cert}})
-	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
-	}
-	defer listen.Close()
-
 	for {
-		conn, err := listen.Accept()
+		if s.config.SSLCert == "" {
+			time.Sleep(1 * time.Minute)
+			return // SSL is disabled
+		}
+
+		cert, err := tls.LoadX509KeyPair(s.config.SSLCert, s.config.SSLKey)
 		if err != nil {
-			fmt.Println("Error accepting connection:", err)
+			log.Println("Failed to load SSL certificate: %v", err)
+			time.Sleep(1 * time.Minute)
 			continue
 		}
-		go s.handleConnection(conn, true)
+
+		listen, err := tls.Listen("tcp", ":6697", &tls.Config{Certificates: []tls.Certificate{cert}})
+		if err != nil {
+			log.Println("Failed to listen: %v", err)
+			time.Sleep(1 * time.Minute)
+			continue
+		}
+		log.Println("Listening on +6697")
+
+	accept:
+		for {
+			select {
+			case _ = <-s.restartssl:
+				break accept
+			default:
+				conn, err := listen.Accept()
+				if err != nil {
+					log.Println("Error accepting connection:", err)
+					continue
+				}
+				go s.handleConnection(conn, true)
+			}
+		}
+		listen.Close()
 	}
 }
 
@@ -620,7 +623,26 @@ func (s *Server) init() {
 	if err != nil {
 		log.Fatal(err)
 	}*/
+}
 
+func (s *Server) loadConfig() {
+	s.Lock()
+	if _, err := os.Stat("anonircd.conf"); err == nil {
+		if _, err := toml.DecodeFile("anonircd.conf", &s.config); err != nil {
+			log.Fatalf("Failed to read anonircd.conf: %v", err)
+		}
+	}
+	s.Unlock()
+}
+
+func (s *Server) reload() {
+	log.Println("Reloading configuration")
+	s.loadConfig()
+	s.restartplain <- true
+	s.restartssl <- true
+}
+
+func (s *Server) listen() {
 	go s.listenPlain()
 	go s.listenSSL()
 
